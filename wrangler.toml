@@ -1,0 +1,13 @@
+name = "inverter-control-worker"
+main = "worker.js"
+
+# 路由配置
+# route = { pattern = "your-domain.com/*", zone_name = "your-domain.com" }
+
+# 环境变量配置
+[vars]
+
+# 资源绑定配置（可选）
+# [[kv_namespaces]]
+# binding = "MY_KV"
+# id = "your-kv-namespace-id"
