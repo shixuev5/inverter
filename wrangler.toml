@@ -1,5 +1,6 @@
 name = "inverter-control-worker"
 main = "worker.js"
+compatibility_date = "2025-01-01"
 
 # 路由配置
 # route = { pattern = "your-domain.com/*", zone_name = "your-domain.com" }
