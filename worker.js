@@ -1,37 +1,30 @@
 /**
  * Cloudflare Worker 实现逆变器状态查询和控制
- * 功能：
- * 1. 查询 SOC（电池荷电状态）
- * 2. 查询电池馈网状态
- * 3. 根据 SOC 和电池馈网状态判断是否需要调整
- * 4. 执行相应操作（开启/关闭电池馈网，开启削峰填谷）
- * 5. 格式化输出结果
  */
 
-// API 配置（使用环境变量）
-const API_CONFIG = {
-    BASE_URL: 'https://server-cn.growatt.com/tcpSet.do',
-    HEADERS: {
-        'maketoken': (typeof MAKETOKEN !== 'undefined' ? MAKETOKEN : 'default_token'),
-        'permissionskey': "oss_cn_"
-    }
-};
-
-// 设备配置（使用环境变量）
-const DEVICE_CONFIG = {
-    SERIAL_NUM: (typeof SERIAL_NUM !== 'undefined' ? SERIAL_NUM : 'default_serial_num')
-};
+// 基础 URL 配置
+const BASE_URL = 'https://server-cn.growatt.com/tcpSet.do';
 
 /**
  * 发送 API 请求的通用函数
+ * 注意：必须传入 env 参数以获取 Token
  */
-async function sendApiRequest(bodyParams) {
+async function sendApiRequest(bodyParams, env) {
     try {
-        const response = await fetch(API_CONFIG.BASE_URL, {
+        // 动态从 env 中获取配置
+        const headers = {
+            'maketoken': env.MAKETOKEN, // 这里直接读取 env 对象
+            'permissionskey': "oss_cn_"
+        };
+
+        // 简单的日志检查
+        // console.log(`使用 Token: ${headers.maketoken}`);
+
+        const response = await fetch(BASE_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                ...API_CONFIG.HEADERS
+                ...headers
             },
             body: new URLSearchParams(bodyParams)
         });
@@ -46,75 +39,77 @@ async function sendApiRequest(bodyParams) {
 /**
  * 查询 SOC（电池荷电状态）
  */
-async function querySOC() {
+async function querySOC(env) {
     const bodyParams = {
-        'action': 'getDeviceData',
-        'serialNum': DEVICE_CONFIG.SERIAL_NUM,
-        'paramId': 'storage_soc'
+        'action': 'readStorageParam',
+        'paramId': 'set_any_reg',
+        'serialNum': env.SERIAL_NUM, // 从 env 读取序列号
+        'startAddr': 1018,
+        'endAddr': 1018
     };
 
-    return sendApiRequest(bodyParams);
+    return sendApiRequest(bodyParams, env);
 }
 
 /**
  * 查询电池馈网状态
  */
-async function queryBatteryFeed() {
+async function queryBatteryFeed(env) {
     const bodyParams = {
         'action': 'readStorageParam',
-        'serialNum': DEVICE_CONFIG.SERIAL_NUM,
+        'serialNum': env.SERIAL_NUM,
         'paramId': 'storage_spf5000_uw_bat_feed_en',
         'startAddr': '-1',
         'endAddr': '-1'
     };
 
-    return sendApiRequest(bodyParams);
+    return sendApiRequest(bodyParams, env);
 }
 
 /**
  * 开启电池馈网
  */
-async function enableBatteryFeed() {
+async function enableBatteryFeed(env) {
     const bodyParams = {
         'action': 'storageSPF5000Set',
-        'serialNum': DEVICE_CONFIG.SERIAL_NUM,
+        'serialNum': env.SERIAL_NUM,
         'type': 'storage_spf5000_uw_bat_feed_en',
         'param1': '1'
     };
 
-    return sendApiRequest(bodyParams);
+    return sendApiRequest(bodyParams, env);
 }
 
 /**
  * 关闭电池馈网
  */
-async function disableBatteryFeed() {
+async function disableBatteryFeed(env) {
     const bodyParams = {
         'action': 'storageSPF5000Set',
-        'serialNum': DEVICE_CONFIG.SERIAL_NUM,
+        'serialNum': env.SERIAL_NUM,
         'type': 'storage_spf5000_uw_bat_feed_en',
         'param1': '0'
     };
 
-    return sendApiRequest(bodyParams);
+    return sendApiRequest(bodyParams, env);
 }
 
 /**
  * 开启削峰填谷
  */
-async function enablePeakShaving() {
+async function enablePeakShaving(env) {
     const bodyParams = {
         'action': 'storageSPF5000Set',
-        'serialNum': DEVICE_CONFIG.SERIAL_NUM,
-        'type': 'storage_spf5000_ut_peak_shaving_set',
+        'serialNum': env.SERIAL_NUM,
+        'type': 'storage_spf5000_uti_peak_shaving_set',
         'param1': '1'
     };
 
-    return sendApiRequest(bodyParams);
+    return sendApiRequest(bodyParams, env);
 }
 
 /**
- * 状态判断逻辑
+ * 状态判断逻辑 (纯逻辑，不需要 env)
  */
 function determineAction(socRes, batRes) {
     let action = -1;
@@ -123,13 +118,16 @@ function determineAction(socRes, batRes) {
         const soc = Number(socRes.msg);
         const bat = Number(batRes.msg);
 
-        if (soc <= 30 && bat) {
-            // 电量小于等于30%且电池馈网开启，则关闭电池馈网
+        // 注意：Growatt 返回的 msg 可能是字符串，需要确保转换正确
+        if (soc <= 30 && bat == 1) { // 假设开启状态 bat 返回 '1' 或 1
+            // 电量 <= 30% 且 馈网开启(1) -> 关闭馈网
             action = 0;
-        } else if (soc >= 40 && !bat) {
-            // 电量大于等于40%且电池馈网关闭，则开启电池馈网和削峰填谷
+        } else if (soc >= 40 && bat == 0) { // 假设关闭状态 bat 返回 '0' 或 0
+            // 电量 >= 40% 且 馈网关闭(0) -> 开启馈网
             action = 1;
         }
+    } else {
+        console.error("无法获取有效状态，跳过逻辑判断");
     }
 
     return action;
@@ -138,20 +136,20 @@ function determineAction(socRes, batRes) {
 /**
  * 执行相应的操作
  */
-async function executeAction(action) {
+async function executeAction(action, env) {
     const messages = [];
 
     if (action === 1) {
         // 开启电池馈网和削峰填谷
-        const batRes = await enableBatteryFeed();
-        const peekRes = await enablePeakShaving();
+        const batRes = await enableBatteryFeed(env);
+        const peekRes = await enablePeakShaving(env);
 
-        messages.push(batRes.success ? '开启电池馈网成功' : '开启电池馈网失败');
-        messages.push(peekRes.success ? '开启削峰填谷成功' : '开启削峰填谷失败');
+        messages.push(batRes.success ? '开启电池馈网成功' : `开启电池馈网失败: ${batRes.msg}`);
+        messages.push(peekRes.success ? '开启削峰填谷成功' : `开启削峰填谷失败: ${peekRes.msg}`);
     } else if (action === 0) {
         // 关闭电池馈网
-        const batCloseRes = await disableBatteryFeed();
-        messages.push(batCloseRes.success ? '关闭电池馈网成功' : '关闭电池馈网失败');
+        const batCloseRes = await disableBatteryFeed(env);
+        messages.push(batCloseRes.success ? '关闭电池馈网成功' : `关闭电池馈网失败: ${batCloseRes.msg}`);
     } else {
         messages.push('不进行任何操作');
     }
@@ -160,72 +158,70 @@ async function executeAction(action) {
 }
 
 /**
- * 核心业务逻辑函数（供 HTTP 请求和定时任务共享）
+ * 核心业务逻辑函数
+ * 接收 env 参数
  */
-async function processInverterLogic() {
+async function processInverterLogic(env) {
+    // 检查环境变量是否存在
+    if (!env.MAKETOKEN || !env.SERIAL_NUM) {
+        return { 
+            error: "环境变量缺失: 请检查 MAKETOKEN 和 SERIAL_NUM" 
+        };
+    }
+
     // 1. 查询 SOC
-    const socRes = await querySOC();
-    console.log('SOC 查询结果:', socRes);
+    const socRes = await querySOC(env);
+    console.log('SOC 查询结果:', JSON.stringify(socRes));
 
     // 2. 查询电池馈网状态
-    const batRes = await queryBatteryFeed();
-    console.log('电池馈网查询结果:', batRes);
+    const batRes = await queryBatteryFeed(env);
+    console.log('电池馈网查询结果:', JSON.stringify(batRes));
 
     // 3. 状态判断
     const action = determineAction(socRes, batRes);
     console.log('决定执行的操作:', action);
 
     // 4. 执行相应操作
-    const output = await executeAction(action);
+    const output = await executeAction(action, env);
     console.log('操作结果:', output);
 
     return { socRes, batRes, action, output };
 }
 
 /**
- * Cloudflare Worker HTTP 请求处理函数
+ * 导出 Module Worker
  */
-async function handleRequest() {
-    try {
-        const { action, output } = await processInverterLogic();
-
-        // 返回 JSON 响应
-        return new Response(JSON.stringify({
-            success: true,
-            action: action,
-            output: output
-        }), {
-            headers: { 'Content-Type': 'application/json' },
-        });
-    } catch (error) {
-        console.error('处理请求失败:', error);
-        return new Response(JSON.stringify({
-            success: false,
-            msg: '处理请求失败'
-        }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-        });
-    }
-}
-
-/**
- * Cloudflare Workers 定时任务处理函数
- */
-async function handleScheduled(event) {
-    console.log('定时任务触发:', event.cron);
-
-    try {
-        await processInverterLogic();
-        return new Response('定时任务执行完成');
-    } catch (error) {
-        console.error('定时任务执行失败:', error);
-        return new Response('定时任务执行失败', { status: 500 });
-    }
-}
-
-// 导出 Module Worker 格式（包含定时任务支持）
 export default {
-    fetch: handleRequest,
-    scheduled: handleScheduled
+    // HTTP 请求处理
+    async fetch(request, env, ctx) {
+        try {
+            const result = await processInverterLogic(env);
+
+            return new Response(JSON.stringify({
+                success: true,
+                ...result
+            }), {
+                headers: { 'Content-Type': 'application/json' },
+            });
+        } catch (error) {
+            console.error('处理请求失败:', error);
+            return new Response(JSON.stringify({
+                success: false,
+                msg: error.message
+            }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+    },
+
+    // 定时任务处理
+    async scheduled(event, env, ctx) {
+        console.log('定时任务触发:', event.cron);
+        try {
+            await processInverterLogic(env);
+        } catch (error) {
+            console.error('定时任务执行失败:', error);
+        }
+    }
 };
