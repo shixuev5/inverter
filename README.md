@@ -28,25 +28,54 @@ npm run dev
 npm run deploy
 ```
 
-## API 配置
+## 环境变量配置
 
-在 `worker.js` 文件中，您可以修改以下配置：
+**重要安全提示**：**不要将敏感信息（如 maketoken、密码等）硬编码到代码中或提交到 GitHub！**
 
-```javascript
-// API 配置
-const API_CONFIG = {
-    BASE_URL: 'https://server-cn.growatt.com/tcpSet.do',
-    HEADERS: {
-        'maketoken': '97e91ae5a7fb3b38f44c7221cff8b37c5',
-        'permissionskey': 'oss_cn_'
-    }
-};
+### 1. 本地开发环境变量
 
-// 设备配置
-const DEVICE_CONFIG = {
-    SERIAL_NUM: 'NQ2QF5JOK7'
-};
+1. 复制 `.env.example` 文件为 `.env`：
+   ```bash
+   cp .env.example .env
+   ```
+
+2. 编辑 `.env` 文件，填写您的实际值：
+   ```
+   # API 配置
+   MAKETOKEN=your_maketoken_here
+   SERIAL_NUM=your_serial_number_here
+   ```
+
+3. `.env` 文件已被添加到 `.gitignore` 中，不会被提交到 GitHub。
+
+### 2. 生产环境变量（Cloudflare Workers Secrets）
+
+在生产环境中，应使用 Cloudflare Workers 的 Secrets 功能来存储敏感信息：
+
+```bash
+# 添加环境变量
+npm run secret:put MAKETOKEN
+npm run secret:put SERIAL_NUM
+
+# 查看已添加的 Secrets
+npm run secret:list
+
+# 删除 Secrets
+npm run secret:delete MAKETOKEN
 ```
+
+### 定时任务配置
+
+Worker 已配置为**每小时自动执行一次**。定时任务配置在 `wrangler.toml` 文件中：
+
+```toml
+[triggers]
+crons = ["0 * * * *"]  # UTC 时间每小时执行一次
+```
+
+您可以根据需要调整 cron 表达式，例如：
+- `*/30 * * * *` - 每 30 分钟执行一次
+- `0 8-18 * * *` - 每天早上 8 点到下午 6 点每小时执行一次
 
 ## 使用方法
 

@@ -5,8 +5,16 @@ compatibility_date = "2025-01-01"
 # 路由配置
 # route = { pattern = "your-domain.com/*", zone_name = "your-domain.com" }
 
-# 环境变量配置
+# 定时任务配置：每小时执行一次
+# 格式：分钟 小时 日期 月份 星期 (UTC时间)
+# 0 * * * * 表示 UTC 时间每小时的第 0 分钟执行
+[triggers]
+crons = ["0 * * * *"]
+
+# 环境变量配置（仅在开发/测试时使用，生产环境应使用 secrets）
 [vars]
+# 注意：不要在这里放置敏感信息，如 token、密码等
+# 生产环境的敏感信息请使用 wrangler secret put 命令添加
 
 # 资源绑定配置（可选）
 # [[kv_namespaces]]

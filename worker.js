@@ -160,27 +160,36 @@ async function executeAction(action) {
 }
 
 /**
- * Cloudflare Worker 主要处理函数
+ * 核心业务逻辑函数（供 HTTP 请求和定时任务共享）
  */
-async function handleRequest(request) {
+async function processInverterLogic() {
+    // 1. 查询 SOC
+    const socRes = await querySOC();
+    console.log('SOC 查询结果:', socRes);
+
+    // 2. 查询电池馈网状态
+    const batRes = await queryBatteryFeed();
+    console.log('电池馈网查询结果:', batRes);
+
+    // 3. 状态判断
+    const action = determineAction(socRes, batRes);
+    console.log('决定执行的操作:', action);
+
+    // 4. 执行相应操作
+    const output = await executeAction(action);
+    console.log('操作结果:', output);
+
+    return { socRes, batRes, action, output };
+}
+
+/**
+ * Cloudflare Worker HTTP 请求处理函数
+ */
+async function handleRequest() {
     try {
-        // 1. 查询 SOC
-        const socRes = await querySOC();
-        console.log('SOC 查询结果:', socRes);
+        const { action, output } = await processInverterLogic();
 
-        // 2. 查询电池馈网状态
-        const batRes = await queryBatteryFeed();
-        console.log('电池馈网查询结果:', batRes);
-
-        // 3. 状态判断
-        const action = determineAction(socRes, batRes);
-        console.log('决定执行的操作:', action);
-
-        // 4. 执行相应操作
-        const output = await executeAction(action);
-        console.log('操作结果:', output);
-
-        // 5. 返回结果
+        // 返回 JSON 响应
         return new Response(JSON.stringify({
             success: true,
             action: action,
@@ -200,7 +209,23 @@ async function handleRequest(request) {
     }
 }
 
-// 导出 Module Worker 格式
+/**
+ * Cloudflare Workers 定时任务处理函数
+ */
+async function handleScheduled(event) {
+    console.log('定时任务触发:', event.cron);
+
+    try {
+        await processInverterLogic();
+        return new Response('定时任务执行完成');
+    } catch (error) {
+        console.error('定时任务执行失败:', error);
+        return new Response('定时任务执行失败', { status: 500 });
+    }
+}
+
+// 导出 Module Worker 格式（包含定时任务支持）
 export default {
-    fetch: handleRequest
+    fetch: handleRequest,
+    scheduled: handleScheduled
 };

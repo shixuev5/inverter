@@ -5,7 +5,12 @@
   "main": "worker.js",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "secret:put": "wrangler secret put",
+    "secret:list": "wrangler secret list",
+    "secret:delete": "wrangler secret delete",
+    "preview": "wrangler preview",
+    "tail": "wrangler tail"
   },
   "keywords": ["cloudflare", "worker", "inverter", "growatt"],
   "author": "",
