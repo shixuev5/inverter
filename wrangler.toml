@@ -11,6 +11,12 @@ compatibility_date = "2025-01-01"
 [triggers]
 crons = ["0 * * * *"]
 
+# 日志配置
+[observability]
+[observability.logs]
+enabled = true
+invocation_logs = true
+
 # 环境变量配置（仅在开发/测试时使用，生产环境应使用 secrets）
 [vars]
 # 注意：不要在这里放置敏感信息，如 token、密码等
