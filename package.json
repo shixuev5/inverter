@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Cloudflare Worker for inverter status query and control",
   "main": "worker.js",
+  "packageManager": "yarn@4.12.0",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
@@ -12,7 +13,12 @@
     "preview": "wrangler preview",
     "tail": "wrangler tail"
   },
-  "keywords": ["cloudflare", "worker", "inverter", "growatt"],
+  "keywords": [
+    "cloudflare",
+    "worker",
+    "inverter",
+    "growatt"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
