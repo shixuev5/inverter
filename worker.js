@@ -119,11 +119,11 @@ function determineAction(socRes, batRes) {
         const bat = Number(batRes.msg);
 
         // 注意：Growatt 返回的 msg 可能是字符串，需要确保转换正确
-        if (soc <= 30 && bat == 1) { // 假设开启状态 bat 返回 '1' 或 1
-            // 电量 <= 30% 且 馈网开启(1) -> 关闭馈网
+        if (soc <= 25 && bat == 1) { // 假设开启状态 bat 返回 '1' 或 1
+            // 电量 <= 25% 且 馈网开启(1) -> 关闭馈网
             action = 0;
-        } else if (soc >= 40 && bat == 0) { // 假设关闭状态 bat 返回 '0' 或 0
-            // 电量 >= 40% 且 馈网关闭(0) -> 开启馈网
+        } else if (soc >= 35 && bat == 0) { // 假设关闭状态 bat 返回 '0' 或 0
+            // 电量 >= 35% 且 馈网关闭(0) -> 开启馈网
             action = 1;
         }
     } else {
